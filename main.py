@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
 
     def show_stl(self, file_name):
         file = Mesh(file_name)
-        self.mesh_viewer.addItem(file.mesh)
+        self.mesh_viewer.set_displayed_mesh(file.mesh, file.data)
         # Moves the grid so that the mesh sits on it
         self.grid.scale(int(file.dimensions["width"] / 10), int(file.dimensions["length"] / 10), 1)
         self.grid.translate(0, 0, int(file.dimensions["height"] / -2))
@@ -70,6 +70,7 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
     def __init__(self):
         super().__init__()
         self.clicked_position = QPoint()
+        self.displayed_mesh = []
 
     def wheelEvent(self, event):  # zoom
         super().wheelEvent(event)
@@ -91,15 +92,24 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
 
         line = gl.GLLinePlotItem(pos=[first_point, second_point], width=10, antialias=True, color=(0, 1, 0, 1))
         self.addItem(line)
+        face_vertexes = self.displayed_mesh[0][1].vertexes(
+            indexed='faces')  # [ [ [ x1,y1,z1 ] , [x2,y2,z2 ] , [x3,y3,z3] ] , [x1,y1,z1] ...] ]
+        for face_vertexe in face_vertexes:  # [[mesh,data]]
+            if self.ray_triangle_intersection(first_point, dir_vector, face_vertexe):
+                print(self.ray_triangle_intersection(first_point, dir_vector, face_vertexe))
 
     def ray_triangle_intersection(self, start, direction, triangle):
         # break down triangle into the individual points
-        point1, point2, point3 = triangle
+
+        point1, point2, point3 = triangle[0], triangle[1], triangle[2]
+
         eps = 0.000001
 
         # compute edges
         edge1 = point2 - point1
+
         edge2 = point3 - point1
+        direction = np.array([direction.x(), direction.y(), direction.z()])
         cross_product = np.cross(direction, edge2)
         det = edge1.dot(cross_product)
 
@@ -121,21 +131,30 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
         if t < eps:
             return False
 
-        return True, np.array([t, u, v])
+        print(np.array([t, u, v]))
+        return True
+
+    def set_displayed_mesh(self, mesh, data):
+        self.addItem(mesh)
+        self.displayed_mesh.append([mesh, data])
 
 
 class Mesh:
     def __init__(self, file_name):
         self.file = stl.mesh.Mesh.from_file(file_name)
+        self.data = self.convert_data()
         self.mesh = self.convert_to_stl()
         self.dimensions = self.get_dimensions()
         self.center_mesh()
 
-    def convert_to_stl(self):
+    def convert_data(self):
         points = self.file.points.reshape(-1, 3)
         faces = np.arange(points.shape[0]).reshape(-1, 3)
-        mesh = gl.MeshData(faces=faces, vertexes=points)
-        mesh = gl.GLMeshItem(meshdata=mesh, smooth=False, drawFaces=False, drawEdges=True, edgeColor=(0, 1, 0, 1))
+        data = gl.MeshData(faces=faces, vertexes=points)
+        return data
+
+    def convert_to_stl(self):
+        mesh = gl.GLMeshItem(meshdata=self.data, smooth=False, drawFaces=False, drawEdges=True, edgeColor=(0, 1, 0, 1))
         return mesh
 
     def get_dimensions(self):
