@@ -1,6 +1,7 @@
-from PyQt6.QtCore import QPoint
 import numpy as np
 import pyqtgraph.opengl as gl
+from PyQt6.QtCore import QPoint
+
 
 class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
 
@@ -9,7 +10,6 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
         self.clicked_position = QPoint()
         self.displayed_mesh = []
         self.intersection_triangle = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]]).reshape(3, 3)
-        self.object_to_camera_distance = 0
 
     def wheelEvent(self, event):  # zoom
         super().wheelEvent(event)
@@ -34,13 +34,15 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
         line = gl.GLLinePlotItem(pos=[first_point, second_point], width=10, antialias=True, color=(0, 1, 0, 1))
         self.addItem(line)
         """
-        # check_for_intesection
+        # check_for_intersection
         face_vertexes = self.displayed_mesh[0][1].vertexes(
             indexed='faces')  # [ [ [ x1,y1,z1 ] , [x2,y2,z2 ] , [x3,y3,z3] ] , [x1,y1,z1] ...] ]
-        for face_vertexe in face_vertexes:  # [[mesh,data]]
-            if self.ray_triangle_intersection(first_point, dir_vector, face_vertexe):
-              self.color_face()
-
+        distances = []
+        for face_vertex in face_vertexes:
+            if self.ray_triangle_intersection(first_point, dir_vector, face_vertex):
+                distances.append([self.check_distance(face_vertex), face_vertex])
+        closest = min(distances, key=lambda x: x[0])
+        self.color_face(closest[1])
 
     def ray_triangle_intersection(self, start, direction, triangle):
         point1, point2, point3 = triangle[0], triangle[1], triangle[2]
@@ -81,8 +83,8 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
              np.linalg.norm(self.cameraPosition() - triangle[2])])
         return distance
 
-    def color_face(self):
-        data = gl.MeshData(vertexes=np.array(self.intersection_triangle), faces=[[0, 1, 2]])
+    def color_face(self,face):
+        data = gl.MeshData(vertexes=np.array(face), faces=[[0, 1, 2]])
         selected_face = gl.GLMeshItem(meshdata=data, smooth=False, drawFaces=True)
         self.addItem(selected_face)
 

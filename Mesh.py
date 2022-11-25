@@ -1,6 +1,7 @@
 import numpy as np
-import stl
 import pyqtgraph.opengl as gl
+import stl
+
 
 class Mesh:
     def __init__(self, file_name):
