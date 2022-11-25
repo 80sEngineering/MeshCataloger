@@ -71,6 +71,7 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
         super().__init__()
         self.clicked_position = QPoint()
         self.displayed_mesh = []
+        self.intersection_triangle = []
 
     def wheelEvent(self, event):  # zoom
         super().wheelEvent(event)
@@ -90,31 +91,32 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
         second_point = self.cameraParams()["center"]
         dir_vector = second_point - first_point
 
-        line = gl.GLLinePlotItem(pos=[first_point, second_point], width=10, antialias=True, color=(0, 1, 0, 1))
-        self.addItem(line)
+        # line = gl.GLLinePlotItem(pos=[first_point, second_point], width=10, antialias=True, color=(0, 1, 0, 1))
+        # self.addItem(line)
+
+        # check_for_intesection
         face_vertexes = self.displayed_mesh[0][1].vertexes(
             indexed='faces')  # [ [ [ x1,y1,z1 ] , [x2,y2,z2 ] , [x3,y3,z3] ] , [x1,y1,z1] ...] ]
         for face_vertexe in face_vertexes:  # [[mesh,data]]
             if self.ray_triangle_intersection(first_point, dir_vector, face_vertexe):
-                print(self.ray_triangle_intersection(first_point, dir_vector, face_vertexe))
+                self.select_face()
+
 
     def ray_triangle_intersection(self, start, direction, triangle):
-        # break down triangle into the individual points
-
         point1, point2, point3 = triangle[0], triangle[1], triangle[2]
 
         eps = 0.000001
 
-        # compute edges
         edge1 = point2 - point1
-
         edge2 = point3 - point1
+
         direction = np.array([direction.x(), direction.y(), direction.z()])
         cross_product = np.cross(direction, edge2)
         det = edge1.dot(cross_product)
 
         if abs(det) < eps:  # no intersection
             return False
+
         inverted_det = 1.0 / det
         tvec = start - point1
         u = tvec.dot(cross_product) * inverted_det
@@ -131,8 +133,14 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
         if t < eps:
             return False
 
-        print(np.array([t, u, v]))
+        self.intersection_triangle = triangle
         return True
+
+    def select_face(self):
+        data = gl.MeshData(vertexes=np.array(self.intersection_triangle), faces=[[0, 1, 2]])
+        selected_face = gl.GLMeshItem(meshdata=data, smooth=False, drawFaces=True)
+        self.addItem(selected_face)
+        self.intersection_triangle = np.zeros(shape=(3, 3))
 
     def set_displayed_mesh(self, mesh, data):
         self.addItem(mesh)
