@@ -5,7 +5,6 @@ from PyQt6.QtCore import QSize
 from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, \
     QFileDialog, QLabel
 
-
 from Viewer import Viewer
 
 
@@ -39,8 +38,6 @@ class MainWindow(QMainWindow):
         data = QFileDialog.getOpenFileName(self, 'Open file', home_directory, filter="*.stl")
         file_name = data[0]
         self.mesh_viewer.show_stl(file_name)
-
-
 
 
 def main():

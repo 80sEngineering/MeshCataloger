@@ -1,14 +1,18 @@
 import numpy as np
 import pyqtgraph.opengl as gl
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QVector3D
+
 from Mesh import Mesh
+
 
 class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
 
     def __init__(self):
         super().__init__()
         self.displayed_mesh = []
-        self.setCameraParams(distance=40, fov=60)
+        self.camera_distance = 40
+        self.setCameraParams(distance=self.camera_distance, fov=60)
         self.grid = gl.GLGridItem()
         self.addItem(self.grid)
         self.intersection_triangle = np.empty((3, 3))
@@ -22,8 +26,6 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
         if event.button() == Qt.MouseButton.RightButton:
             self.aiming_line()
 
-    # to get camera params, use self.cameraParams()
-
     def show_stl(self, file_name):
         file = Mesh(file_name)
         self.set_displayed_mesh(file.mesh, file.data)
@@ -34,7 +36,8 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
         distances = [file.dimensions['width'] / np.tan(np.pi * 0.1666),
                      file.dimensions['length'] / np.tan(np.pi * 0.1666),
                      file.dimensions['height'] / np.tan(np.pi * 0.1666)]
-        self.setCameraParams(distance=max(distances))
+        self.camera_distance = max(distances)
+        self.setCameraParams(distance=self.camera_distance)
 
     def aiming_line(self):
         point_of_view = self.cameraPosition()
@@ -99,9 +102,29 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
 
     def select_face(self, face):
         data = gl.MeshData(vertexes=np.array(face), faces=[[0, 1, 2]])
-        face_mesh = gl.GLMeshItem(meshdata=data, smooth=False, drawFaces=True,color = (1,0,0,1))
+        face_mesh = gl.GLMeshItem(meshdata=data, smooth=False, drawFaces=True, color=(1, 0, 0, 1))
         self.addItem(face_mesh)
-        self.setCameraParams(distance=40, fov=60)
 
+        # Getting the center of the face == center of rotation of the camera.
+        center = (face[0] + face[1] + face[2]) / 3
+        center = QVector3D(center[0], center[1], center[2])
 
+        #  Getting the normal of the face == direction of the camera.
+        normal = np.cross(face[1] - face[0], face[2] - face[0])
+        normal = QVector3D(normal[0], normal[1], normal[2])
 
+        line = gl.GLLinePlotItem(pos=[[center.x(), center.y(), center.z()],
+                                      [center.x() + normal.x(), center.y() + normal.y(), center.z() + normal.z()]],
+                                 width=10, antialias=True, color=(0, 1, 0, 1))
+        self.addItem(line)
+
+        # Computing elevation and azimuth of the camera from the normal.
+        x0, y0, z0 = center.x(), center.y(), center.z()
+        x, y, z = x0 + normal.x(), y0 + normal.y(), z0 + normal.z()
+        elevation = np.arccos(z / np.sqrt(x ** 2 + y ** 2 + z ** 2))
+        elevation = np.pi/2 - elevation
+        azimuth = np.sign(y) * np.arccos(x / np.sqrt(x ** 2 + y ** 2))
+        print(np.degrees(elevation), np.degrees(azimuth))
+        camera_parameters = {'distance': self.camera_distance, 'elevation': np.degrees(elevation),
+                             'azimuth': np.degrees(azimuth), 'pos': center}
+        self.setCameraPosition(**camera_parameters)
