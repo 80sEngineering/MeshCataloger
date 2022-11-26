@@ -1,6 +1,6 @@
 import numpy as np
 import pyqtgraph.opengl as gl
-from PyQt6.QtCore import QPoint
+from PyQt6.QtCore import QPoint, Qt
 
 
 class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
@@ -19,30 +19,34 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
 
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
+        if event.button() == Qt.MouseButton.RightButton:
+            self.aiming_line()
         self.clicked_position.x, self.clicked_position.y = event.pos().x(), event.pos().y()
-        self.aiming_line()
+
 
     # to get camera params, use self.cameraParams()
 
     def aiming_line(self):
-        first_point = self.cameraPosition()
-        second_point = self.cameraParams()["center"]
-        dir_vector = second_point - first_point
+        point_of_view = self.cameraPosition()
+        center = self.cameraParams()["center"]
+        dir_vector_to_center = center - point_of_view
 
-        # To show the line :
-        """
-        line = gl.GLLinePlotItem(pos=[first_point, second_point], width=10, antialias=True, color=(0, 1, 0, 1))
-        self.addItem(line)
-        """
+        # show the line
+        # line = gl.GLLinePlotItem(pos=[point_of_view, ], width=10, antialias=True, color=(0, 1, 0, 1))
+        # self.addItem(line)
+
         # check_for_intersection
         face_vertexes = self.displayed_mesh[0][1].vertexes(
             indexed='faces')  # [ [ [ x1,y1,z1 ] , [x2,y2,z2 ] , [x3,y3,z3] ] , [x1,y1,z1] ...] ]
         distances = []
-        for face_vertex in face_vertexes:
-            if self.ray_triangle_intersection(first_point, dir_vector, face_vertex):
+        index = 0
+        for face_vertex in face_vertexes: # Browse from bottom to top
+            if self.ray_triangle_intersection(point_of_view, dir_vector_to_center, face_vertex):
                 distances.append([self.check_distance(face_vertex), face_vertex])
-        closest = min(distances, key=lambda x: x[0])
-        self.color_face(closest[1])
+            index += 1
+        closest = min(distances, key=lambda x: x[0]) # distance = [ distance, face_vertex ]
+        selected_face = closest[1]
+        self.color_face(selected_face)
 
     def ray_triangle_intersection(self, start, direction, triangle):
         point1, point2, point3 = triangle[0], triangle[1], triangle[2]
@@ -83,7 +87,7 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
              np.linalg.norm(self.cameraPosition() - triangle[2])])
         return distance
 
-    def color_face(self,face):
+    def color_face(self, face):
         data = gl.MeshData(vertexes=np.array(face), faces=[[0, 1, 2]])
         selected_face = gl.GLMeshItem(meshdata=data, smooth=False, drawFaces=True)
         self.addItem(selected_face)

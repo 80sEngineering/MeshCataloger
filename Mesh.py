@@ -54,4 +54,12 @@ class Mesh:
         dx = -self.dimensions["minx"] - (self.dimensions["width"] / 2)
         dy = -self.dimensions["miny"] - (self.dimensions["length"] / 2)
         dz = -self.dimensions["minz"] - (self.dimensions["height"] / 2)
-        self.mesh.translate(dx, dy, dz)
+        vertexes = []
+        for vertex in self.data.vertexes():
+            vertex[0] += dx
+            vertex[1] += dy
+            vertex[2] += dz
+            vertexes.append(vertex)
+        faces = np.arange(np.array(vertexes).shape[0]).reshape(-1, 3)
+        self.mesh.setMeshData(meshdata=gl.MeshData(faces=faces, vertexes=vertexes))
+        self.mesh.update()

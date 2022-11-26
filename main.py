@@ -3,9 +3,9 @@ from pathlib import Path
 
 import numpy as np
 import pyqtgraph.opengl as gl
-from PyQt6.QtCore import QSize
-from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QFileDialog, \
-    QLabel
+from PyQt6.QtCore import QSize, QPoint
+from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QStackedLayout, QWidget, \
+    QFileDialog, QLabel
 
 from Mesh import Mesh
 from Viewer import Viewer
@@ -15,16 +15,16 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
         self.setWindowTitle('MeshCataloger')
-        self.setFixedSize(QSize(500, 500))
+        self.setMinimumSize(QSize(500, 500))
 
         self.mesh_viewer = Viewer()
         self.grid = gl.GLGridItem()
         self.init_mesh_viewer()
         view_layout = QVBoxLayout()
         bottom_layout = self.init_button_and_text()
+        self.init_mesh_viewer()
         view_layout.addWidget(self.mesh_viewer)
         view_layout.addLayout(bottom_layout)
-
         view = QWidget()
         view.setLayout(view_layout)
         self.setCentralWidget(view)
@@ -34,9 +34,13 @@ class MainWindow(QMainWindow):
             'distance': 40.0,
             'fov': 60
         }
+        viewer_layout = QStackedLayout()
         self.mesh_viewer.setCameraParams(**camera_params)
         self.mesh_viewer.setCameraParams()
         self.mesh_viewer.addItem(self.grid)
+
+
+
 
     def init_button_and_text(self):
         file_button = QPushButton("Browse")
