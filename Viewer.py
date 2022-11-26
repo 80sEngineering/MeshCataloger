@@ -1,30 +1,40 @@
 import numpy as np
 import pyqtgraph.opengl as gl
-from PyQt6.QtCore import QPoint, Qt
-
+from PyQt6.QtCore import Qt
+from Mesh import Mesh
 
 class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
 
     def __init__(self):
         super().__init__()
-        self.clicked_position = QPoint()
         self.displayed_mesh = []
-        self.intersection_triangle = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]]).reshape(3, 3)
+        self.setCameraParams(distance=40, fov=60)
+        self.grid = gl.GLGridItem()
+        self.addItem(self.grid)
+        self.intersection_triangle = np.empty((3, 3))
 
-    def wheelEvent(self, event):  # zoom
-        super().wheelEvent(event)
-
-    def mouseMoveEvent(self, event):
-        super().mouseMoveEvent(event)
+    def set_displayed_mesh(self, mesh, data):
+        self.addItem(mesh)
+        self.displayed_mesh.append([mesh, data])
 
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
         if event.button() == Qt.MouseButton.RightButton:
             self.aiming_line()
-        self.clicked_position.x, self.clicked_position.y = event.pos().x(), event.pos().y()
-
 
     # to get camera params, use self.cameraParams()
+
+    def show_stl(self, file_name):
+        file = Mesh(file_name)
+        self.set_displayed_mesh(file.mesh, file.data)
+        # Moves the grid so that the mesh sits on it
+        self.grid.scale(int(file.dimensions["width"] / 10), int(file.dimensions["length"] / 10), 1)
+        self.grid.translate(0, 0, int(file.dimensions["height"] / -2))
+        # Moves the camera to account for mesh's size.
+        distances = [file.dimensions['width'] / np.tan(np.pi * 0.1666),
+                     file.dimensions['length'] / np.tan(np.pi * 0.1666),
+                     file.dimensions['height'] / np.tan(np.pi * 0.1666)]
+        self.setCameraParams(distance=max(distances))
 
     def aiming_line(self):
         point_of_view = self.cameraPosition()
@@ -40,13 +50,13 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
             indexed='faces')  # [ [ [ x1,y1,z1 ] , [x2,y2,z2 ] , [x3,y3,z3] ] , [x1,y1,z1] ...] ]
         distances = []
         index = 0
-        for face_vertex in face_vertexes: # Browse from bottom to top
+        for face_vertex in face_vertexes:  # Browse from bottom to top
             if self.ray_triangle_intersection(point_of_view, dir_vector_to_center, face_vertex):
                 distances.append([self.check_distance(face_vertex), face_vertex])
             index += 1
-        closest = min(distances, key=lambda x: x[0]) # distance = [ distance, face_vertex ]
+        closest = min(distances, key=lambda x: x[0])  # distance = [ distance, face_vertex ]
         selected_face = closest[1]
-        self.color_face(selected_face)
+        self.select_face(selected_face)
 
     def ray_triangle_intersection(self, start, direction, triangle):
         point1, point2, point3 = triangle[0], triangle[1], triangle[2]
@@ -87,11 +97,11 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
              np.linalg.norm(self.cameraPosition() - triangle[2])])
         return distance
 
-    def color_face(self, face):
+    def select_face(self, face):
         data = gl.MeshData(vertexes=np.array(face), faces=[[0, 1, 2]])
-        selected_face = gl.GLMeshItem(meshdata=data, smooth=False, drawFaces=True)
-        self.addItem(selected_face)
+        face_mesh = gl.GLMeshItem(meshdata=data, smooth=False, drawFaces=True,color = (1,0,0,1))
+        self.addItem(face_mesh)
+        self.setCameraParams(distance=40, fov=60)
 
-    def set_displayed_mesh(self, mesh, data):
-        self.addItem(mesh)
-        self.displayed_mesh.append([mesh, data])
+
+
