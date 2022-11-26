@@ -2,6 +2,7 @@ import numpy as np
 import pyqtgraph.opengl as gl
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QVector3D
+from PyQt6.QtTest import QTest
 
 from Mesh import Mesh
 
@@ -113,18 +114,28 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
         normal = np.cross(face[1] - face[0], face[2] - face[0])
         normal = QVector3D(normal[0], normal[1], normal[2])
 
-        line = gl.GLLinePlotItem(pos=[[center.x(), center.y(), center.z()],
-                                      [center.x() + normal.x(), center.y() + normal.y(), center.z() + normal.z()]],
-                                 width=10, antialias=True, color=(0, 1, 0, 1))
-        self.addItem(line)
-
         # Computing elevation and azimuth of the camera from the normal.
         x0, y0, z0 = center.x(), center.y(), center.z()
         x, y, z = x0 + normal.x(), y0 + normal.y(), z0 + normal.z()
-        elevation = np.arccos(z / np.sqrt(x ** 2 + y ** 2 + z ** 2))
-        elevation = np.pi/2 - elevation
-        azimuth = np.sign(y) * np.arccos(x / np.sqrt(x ** 2 + y ** 2))
-        print(np.degrees(elevation), np.degrees(azimuth))
-        camera_parameters = {'distance': self.camera_distance, 'elevation': np.degrees(elevation),
-                             'azimuth': np.degrees(azimuth), 'pos': center}
-        self.setCameraPosition(**camera_parameters)
+        final_elevation = np.arccos(z / np.sqrt(x ** 2 + y ** 2 + z ** 2))
+        final_elevation = np.pi / 2 - final_elevation
+        final_azimuth = np.sign(y) * np.arccos(x / np.sqrt(x ** 2 + y ** 2))
+        final_elevation, final_azimuth = np.rad2deg(final_elevation), np.rad2deg(final_azimuth)
+
+        current_camera_parameters = self.cameraParams()
+        current_elevation, current_azimuth = current_camera_parameters["elevation"], current_camera_parameters[
+            "azimuth"]
+
+        elevation_travel = np.linspace(current_elevation, final_elevation, 50)
+        azimuth_travel = np.linspace(current_azimuth, final_azimuth, 50)
+        distance_travel = np.linspace(current_camera_parameters["distance"], self.camera_distance, 50)
+        center_x_travel = np.linspace(current_camera_parameters["center"][0], center.x(), 50)
+        center_y_travel = np.linspace(current_camera_parameters["center"][1], center.y(), 50)
+        center_z_travel = np.linspace(current_camera_parameters["center"][2], center.z(), 50)
+
+        for elevation, azimuth, distance, center_x, center_y, center_z in zip(elevation_travel, azimuth_travel,
+                                                                              distance_travel, center_x_travel,
+                                                                              center_y_travel, center_z_travel):
+            self.setCameraParams(elevation=elevation, azimuth=azimuth, distance=distance, center=QVector3D(center_x,center_y,center_z))
+            self.update()
+            QTest.qWait(10)
