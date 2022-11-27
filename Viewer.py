@@ -3,11 +3,12 @@ import pyqtgraph.opengl as gl
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QVector3D
 from PyQt6.QtTest import QTest
+from pyqtgraph.Vector import Vector
 
 from Mesh import Mesh
 
 
-class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
+class Viewer(gl.GLViewWidget):
 
     def __init__(self):
         super().__init__()
@@ -24,28 +25,13 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
                 self.removeItem(displayed_item['mesh'])
                 self.displayed_items.remove(displayed_item)
                 break
-            if displayed_item['name'] == 'point':
-                self.removeItem(displayed_item['mesh'])
-                self.displayed_items.remove(displayed_item)
-                break
         self.addItem(item)
         self.displayed_items.append({'mesh': item, 'data': data, 'name': name})
-
-
-    def mouseMoveEvent(self, event):
-        super().mouseMoveEvent(event)
-        if event.buttons() == Qt.MouseButton.LeftButton:
-            self.set_aiming_dot()
 
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
         if event.button() == Qt.MouseButton.RightButton:
             self.aiming_line()
-
-    def set_aiming_dot(self):
-        current_center = self.cameraParams()["center"]
-        aiming_dot = gl.GLScatterPlotItem(pos=current_center, size=10, color=(0, 1, 0, 1))
-        self.set_displayed_items(aiming_dot, None, "point")
 
     def show_stl(self, file_name):
         file = Mesh(file_name)
@@ -166,6 +152,6 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
                                                                               distance_travel, center_x_travel,
                                                                               center_y_travel, center_z_travel):
             self.setCameraParams(elevation=elevation, azimuth=azimuth, distance=distance,
-                                 center=QVector3D(center_x, center_y, center_z))
+                                 center=Vector(center_x, center_y, center_z))
             self.update()
             QTest.qWait(10)

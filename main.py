@@ -1,8 +1,8 @@
 import sys
 from pathlib import Path
 
-from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QSize
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, \
     QFileDialog, QLabel
 
@@ -13,7 +13,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
         self.setWindowTitle('MeshCataloger')
-        self.setMinimumSize(QSize(500, 500))
+        self.setFixedSize(QSize(640, 500))
         self.mesh_viewer = Viewer()
         view_layout = QVBoxLayout()
         bottom_layout = self.init_button_and_text()
@@ -22,6 +22,7 @@ class MainWindow(QMainWindow):
         view = QWidget()
         view.setLayout(view_layout)
         self.setCentralWidget(view)
+        self.init_aiming_dot()
 
     def init_button_and_text(self):
         file_button = QPushButton("Browse")
@@ -39,6 +40,16 @@ class MainWindow(QMainWindow):
         data = QFileDialog.getOpenFileName(self, 'Open file', home_directory, filter="*.stl")
         file_name = data[0]
         self.mesh_viewer.show_stl(file_name)
+
+    def init_aiming_dot(self): # TODO a cleaner
+        aiming_dot = QLabel(self)
+        scaling_down = QSize(8,8)
+        pixmap = QPixmap("green_dot.png").scaled(scaling_down)
+        aiming_dot.setPixmap(pixmap)
+        middle_coordinates = (
+        int(self.frameSize().width() / 2)-4, int(self.frameSize().height() / 2)-4)
+        aiming_dot.move(middle_coordinates[0], middle_coordinates[1]-42)
+        print(self.mesh_viewer.frameSize().width(), self.mesh_viewer.frameSize().height())
 
 
 def main():
