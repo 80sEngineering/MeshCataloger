@@ -12,6 +12,7 @@ class Viewer(gl.GLViewWidget):
 
     def __init__(self):
         super().__init__()
+        self.setMinimumSize(450, 450)
         self.displayed_items = []
         self.camera_distance = 40
         self.setCameraParams(distance=self.camera_distance, fov=60)
@@ -30,7 +31,8 @@ class Viewer(gl.GLViewWidget):
 
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
-        if event.button() == Qt.MouseButton.RightButton:
+        if event.button() == Qt.MouseButton.RightButton and len(
+                self.displayed_items) > 1:  # to make sure a mesh is loaded
             self.aiming_line()
 
     def show_stl(self, file_name):
@@ -69,10 +71,11 @@ class Viewer(gl.GLViewWidget):
             if self.ray_triangle_intersection(point_of_view, dir_vector_to_center, face_vertex):
                 distances.append([self.check_distance(face_vertex), face_vertex])
             index += 1
-        closest = min(distances, key=lambda x: x[0])  # distance = [ distance, face_vertex ]
-        selected_face = closest[1]
-        self.select_face(selected_face)
-        self.rotate_camera(selected_face)
+        if len(distances) > 0:  # if there is an intersection
+            closest = min(distances, key=lambda x: x[0])  # distance = [ distance, face_vertex ]
+            selected_face = closest[1]
+            self.select_face(selected_face)
+            self.rotate_camera(selected_face)
 
     def ray_triangle_intersection(self, start, direction, triangle):
         point1, point2, point3 = triangle[0], triangle[1], triangle[2]
