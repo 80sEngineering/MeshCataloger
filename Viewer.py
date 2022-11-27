@@ -15,21 +15,41 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
         self.camera_distance = 40
         self.setCameraParams(distance=self.camera_distance, fov=60)
         self.grid = gl.GLGridItem()
-        self.set_displayed_mesh(self.grid, None, "grid")
+        self.set_displayed_items(self.grid, None, "grid")
         self.intersection_triangle = np.empty((3, 3))
 
-    def set_displayed_mesh(self, mesh, data, name):
-        self.addItem(mesh)
-        self.displayed_items.append({'mesh': mesh, 'data': data, 'name': name})
+    def set_displayed_items(self, item, data, name):
+        for displayed_item in self.displayed_items:
+            if displayed_item['name'] == "face":
+                self.removeItem(displayed_item['mesh'])
+                self.displayed_items.remove(displayed_item)
+                break
+            if displayed_item['name'] == 'point':
+                self.removeItem(displayed_item['mesh'])
+                self.displayed_items.remove(displayed_item)
+                break
+        self.addItem(item)
+        self.displayed_items.append({'mesh': item, 'data': data, 'name': name})
+
+
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        if event.buttons() == Qt.MouseButton.LeftButton:
+            self.set_aiming_dot()
 
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
         if event.button() == Qt.MouseButton.RightButton:
             self.aiming_line()
 
+    def set_aiming_dot(self):
+        current_center = self.cameraParams()["center"]
+        aiming_dot = gl.GLScatterPlotItem(pos=current_center, size=10, color=(0, 1, 0, 1))
+        self.set_displayed_items(aiming_dot, None, "point")
+
     def show_stl(self, file_name):
         file = Mesh(file_name)
-        self.set_displayed_mesh(file.mesh, file.data, "stl")
+        self.set_displayed_items(file.mesh, file.data, "stl")
         # Moves the grid so that the mesh sits on it
         self.grid.scale(int(file.dimensions["width"] / 10), int(file.dimensions["length"] / 10), 1)
         self.grid.translate(0, 0, int(file.dimensions["height"] / -2))
@@ -109,15 +129,9 @@ class Viewer(gl.GLViewWidget):  # allows to track camera's movement and clicks.
         return distance
 
     def select_face(self, face):
-        for item in self.displayed_items:
-            if item['name'] == "face":
-                self.removeItem(item['mesh'])
-                self.displayed_items.remove(item)
-                break
         data = gl.MeshData(vertexes=np.array(face), faces=[[0, 1, 2]])
         face_mesh = gl.GLMeshItem(meshdata=data, smooth=False, drawFaces=True, color=(1, 0, 0, 1))
-        self.set_displayed_mesh(face_mesh, data, "face")
-
+        self.set_displayed_items(face_mesh, data, "face")
 
     def rotate_camera(self, face):
         # Getting the center of the face to align it with the center of rotation of the camera.
