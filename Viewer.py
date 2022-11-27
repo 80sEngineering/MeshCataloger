@@ -143,8 +143,12 @@ class Viewer(gl.GLViewWidget):
         current_camera_parameters = self.cameraParams()
         current_elevation, current_azimuth = current_camera_parameters["elevation"], current_camera_parameters[
             "azimuth"]
-
         elevation_travel = np.linspace(current_elevation, final_elevation, 50)
+        if abs(final_azimuth - current_azimuth) > 180:
+            if final_azimuth > current_azimuth:
+                final_azimuth -= 360
+            else:
+                final_azimuth += 360
         azimuth_travel = np.linspace(current_azimuth, final_azimuth, 50)
         distance_travel = np.linspace(current_camera_parameters["distance"], self.camera_distance, 50)
         center_x_travel = np.linspace(current_camera_parameters["center"][0], center.x(), 50)

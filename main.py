@@ -76,12 +76,13 @@ class MainWindow(QMainWindow):
         pixmap = QPixmap("red_dot.png").scaled(scaling_down)
         aiming_dot.setPixmap(pixmap)
         middle_coordinates = self.viewer_size / 2
-        aiming_dot.move(middle_coordinates.width(), middle_coordinates.height()+8)
+        aiming_dot.move(middle_coordinates.width(), middle_coordinates.height() + 8)
 
+    """
     def resizeEvent(self, event):
         print("Window_resized")
         QMainWindow.resizeEvent(self, event)
-
+    """
 
     def clicked_file_button(self):
         home_directory = str(Path.home())
@@ -97,7 +98,7 @@ class MainWindow(QMainWindow):
         for item in self.mesh_viewer.displayed_items:
             if item['name'] == "face":
                 selected_face = item['mesh']
-                print(selected_face)
+                self.text.setText(str(selected_face))
 
 
 def main():
