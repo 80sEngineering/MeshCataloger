@@ -18,7 +18,7 @@ class Mesh:
         return data
 
     def convert_to_stl(self):
-        mesh = gl.GLMeshItem(meshdata=self.data, smooth=False, drawFaces=False, drawEdges=True, edgeColor=(0, 1, 0, 1))
+        mesh = gl.GLMeshItem(meshdata=self.data, smooth=False, drawFaces=False, drawEdges=True, edgeColor=(1, 1, 1, 1))
         return mesh
 
     def get_dimensions(self):

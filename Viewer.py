@@ -12,12 +12,14 @@ class Viewer(gl.GLViewWidget):
 
     def __init__(self):
         super().__init__()
-        self.setMinimumSize(450, 450)
+        self.setMinimumSize(550, 550)
         self.displayed_items = []
         self.camera_distance = 40
         self.setCameraParams(distance=self.camera_distance, fov=60)
         self.grid = gl.GLGridItem()
         self.set_displayed_items(self.grid, None, "grid")
+        self.aiming_dot = gl.GLScatterPlotItem(pos=self.cameraParams()['center'], size=10, color=(1, 0, 0, 1))
+        self.set_displayed_items(self.aiming_dot, None, "aiming_dot")
         self.intersection_triangle = np.empty((3, 3))
 
     def set_displayed_items(self, item, data, name):
@@ -28,6 +30,18 @@ class Viewer(gl.GLViewWidget):
                 break
         self.addItem(item)
         self.displayed_items.append({'mesh': item, 'data': data, 'name': name})
+
+    def remove_displayed_items(self, name):
+        for displayed_item in self.displayed_items:
+            if displayed_item['name'] == name:
+                self.removeItem(displayed_item['mesh'])
+                self.displayed_items.remove(displayed_item)
+                break
+
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        current_center = self.cameraParams()["center"]
+        self.aiming_dot.setData(pos=current_center)
 
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
@@ -74,7 +88,7 @@ class Viewer(gl.GLViewWidget):
         if len(distances) > 0:  # if there is an intersection
             closest = min(distances, key=lambda x: x[0])  # distance = [ distance, face_vertex ]
             selected_face = closest[1]
-            self.select_face(selected_face)
+            self.select_face(selected_face,(0,0,1,1))
             self.rotate_camera(selected_face)
 
     def ray_triangle_intersection(self, start, direction, triangle):
@@ -117,9 +131,9 @@ class Viewer(gl.GLViewWidget):
              np.linalg.norm(self.cameraPosition() - triangle[2])])
         return distance
 
-    def select_face(self, face):
+    def select_face(self, face, color):
         data = gl.MeshData(vertexes=np.array(face), faces=[[0, 1, 2]])
-        face_mesh = gl.GLMeshItem(meshdata=data, smooth=False, drawFaces=True, color=(1, 0, 0, 1))
+        face_mesh = gl.GLMeshItem(meshdata=data, smooth=False, drawFaces=True, color=color)
         self.set_displayed_items(face_mesh, data, "face")
 
     def rotate_camera(self, face):
