@@ -43,7 +43,7 @@ class MainWindow(QMainWindow):
         text_input_instruction.setText("Serial number format")
         right_layout.addWidget(text_input_instruction)
 
-        self.text_input.setPlaceholderText("Part number ****")
+        self.text_input.setPlaceholderText("Part number *")
         right_layout.addWidget(self.text_input)
 
         grid_layout = QGridLayout()
@@ -51,13 +51,15 @@ class MainWindow(QMainWindow):
         first_part_instruction = QLabel("First part number")
         grid_layout.addWidget(first_part_instruction, 0, 0)
 
-        self.first_part_number.maximum = 999
+        self.first_part_number.setMaximum(9999)
+        self.first_part_number.setDecimals(0)
         grid_layout.addWidget(self.first_part_number, 1, 0)
 
         last_part_instruction = QLabel("Last part number")
         grid_layout.addWidget(last_part_instruction, 0, 1)
 
-        self.last_part_number.maximum = 1000
+        self.last_part_number.setMaximum(10000)
+        self.last_part_number.setDecimals(0)
         grid_layout.addWidget(self.last_part_number, 1, 1)
 
         right_layout.addLayout(grid_layout)
@@ -89,8 +91,9 @@ class MainWindow(QMainWindow):
         home_directory = str(Path.home())
         data = QFileDialog.getOpenFileName(self, 'Open file', home_directory, filter="*.stl")
         file_name = data[0]
-        self.file_name.setText(file_name)
+        self.file_name.setText(file_name[-20:])
         self.mesh_viewer.show_stl(file_name)
+        self.mesh_viewer.grid.setVisible(True)
         self.text.setText("Select a face ( aim + right click )")
         self.load_button.setText("Close file")
         self.load_button.disconnect()
@@ -103,7 +106,9 @@ class MainWindow(QMainWindow):
     def clicked_close_file(self):
         self.mesh_viewer.remove_displayed_items("stl")
         self.mesh_viewer.remove_displayed_items("face")
+        self.mesh_viewer.remove_displayed_items("grid")
         self.load_button.disconnect()
+        self.select_face_button.setVisible(False)
         self.load_button.clicked.connect(self.clicked_open_file)
         self.load_button.setText("Load file")
         self.file_name.setText("")
@@ -112,24 +117,39 @@ class MainWindow(QMainWindow):
     def clicked_face_button(self):
         for item in self.mesh_viewer.displayed_items:
             if item['name'] == "face":
-                selected_face = item['mesh']
-                data = item['data']
+                selected_face = item
+                data = selected_face['data']
                 face = data.vertexes()
-                self.mesh_viewer.select_face(face,(0,1,0,1)) # change color of the face to green.
+                self.mesh_viewer.select_face(face, (0, 1, 0, 1))  # change color of the face to green.
                 self.text.setText("Face selected. Enter settings and click serialize")
                 self.serialize_button.setEnabled(True)
 
     def clicked_serialize_button(self):
-        self.serialize()
+        self.open_char_files()
 
-    def serialize(self):
-        for iteration in range(int(self.first_part_number.value())):
-            for letter in self.text_input.text():
-                if letter == "*":
-                    stl_char_file = str(iteration) + str(".stl")
+    def open_char_files(self):
+        files = []  # files = ["p.stl","a.stl","r.stl","t.stl"]
+
+        for letter in self.text_input.text():
+            if letter == "*":
+                stl_char_file = "*"
+                files.append(stl_char_file)
+
+            elif letter == " ":
+                files.append("space")
+
+            elif letter.isdigit():
+                files.append("STL_Characters/" + letter + ".stl")
+
+            else:
+                if letter.islower():
+                    stl_char_file = "STL_Characters/" + "lower_" + letter + ".stl"
+
                 else:
-                    stl_char_file = str(letter) + str(".stl")
-                print(stl_char_file)
+                    stl_char_file = "STL_Characters/" + "upper_" + letter + ".stl"
+                files.append(stl_char_file)
+
+        self.mesh_viewer.show_char(files)
 
 
 def main():

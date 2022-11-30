@@ -1,7 +1,7 @@
 import numpy as np
 import pyqtgraph.opengl as gl
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QVector3D
+from PyQt6.QtGui import QVector3D, QColor, QQuaternion
 from PyQt6.QtTest import QTest
 from pyqtgraph.Vector import Vector
 
@@ -17,17 +17,13 @@ class Viewer(gl.GLViewWidget):
         self.camera_distance = 40
         self.setCameraParams(distance=self.camera_distance, fov=60)
         self.grid = gl.GLGridItem()
+        self.grid.setVisible(False)
         self.set_displayed_items(self.grid, None, "grid")
         self.aiming_dot = gl.GLScatterPlotItem(pos=self.cameraParams()['center'], size=10, color=(1, 0, 0, 1))
         self.set_displayed_items(self.aiming_dot, None, "aiming_dot")
         self.intersection_triangle = np.empty((3, 3))
 
     def set_displayed_items(self, item, data, name):
-        for displayed_item in self.displayed_items:
-            if displayed_item['name'] == "face":
-                self.removeItem(displayed_item['mesh'])
-                self.displayed_items.remove(displayed_item)
-                break
         self.addItem(item)
         self.displayed_items.append({'mesh': item, 'data': data, 'name': name})
 
@@ -37,6 +33,10 @@ class Viewer(gl.GLViewWidget):
                 self.removeItem(displayed_item['mesh'])
                 self.displayed_items.remove(displayed_item)
                 break
+        if name == "grid":
+            self.grid = gl.GLGridItem()
+            self.set_displayed_items(self.grid, None, "grid")
+            self.grid.setVisible(False)
 
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
@@ -51,14 +51,15 @@ class Viewer(gl.GLViewWidget):
 
     def show_stl(self, file_name):
         file = Mesh(file_name)
+        dimensions = file.get_dimensions()
         self.set_displayed_items(file.mesh, file.data, "stl")
         # Moves the grid so that the mesh sits on it
-        self.grid.scale(int(file.dimensions["width"] / 10), int(file.dimensions["length"] / 10), 1)
-        self.grid.translate(0, 0, int(file.dimensions["height"] / -2))
+        self.grid.scale(int(dimensions["width"] / 10), int(dimensions["length"] / 10), 1)
+        self.grid.translate(0, 0, int(dimensions["height"] / -2))
         # Moves the camera to account for mesh's size.
-        distances = [file.dimensions['width'] / np.tan(np.pi * 0.1666),
-                     file.dimensions['length'] / np.tan(np.pi * 0.1666),
-                     file.dimensions['height'] / np.tan(np.pi * 0.1666)]
+        distances = [dimensions['width'] / np.tan(np.pi * 0.1666),
+                     dimensions['length'] / np.tan(np.pi * 0.1666),
+                     dimensions['height'] / np.tan(np.pi * 0.1666)]
         self.camera_distance = max(distances)
         self.setCameraParams(distance=self.camera_distance)
 
@@ -88,7 +89,7 @@ class Viewer(gl.GLViewWidget):
         if len(distances) > 0:  # if there is an intersection
             closest = min(distances, key=lambda x: x[0])  # distance = [ distance, face_vertex ]
             selected_face = closest[1]
-            self.select_face(selected_face,(0,0,1,1))
+            self.select_face(selected_face, (0, 0, 1, 1))
             self.rotate_camera(selected_face)
 
     def ray_triangle_intersection(self, start, direction, triangle):
@@ -134,6 +135,7 @@ class Viewer(gl.GLViewWidget):
     def select_face(self, face, color):
         data = gl.MeshData(vertexes=np.array(face), faces=[[0, 1, 2]])
         face_mesh = gl.GLMeshItem(meshdata=data, smooth=False, drawFaces=True, color=color)
+        self.remove_displayed_items("face")
         self.set_displayed_items(face_mesh, data, "face")
 
     def rotate_camera(self, face):
@@ -176,3 +178,23 @@ class Viewer(gl.GLViewWidget):
                                  center=Vector(center_x, center_y, center_z))
             self.update()
             QTest.qWait(10)
+
+    def show_char(self, files):
+        face_center = [0, 0, 0]
+        normal = list()
+        for item in self.displayed_items:
+            if item["name"] == "face":
+                normal = item['mesh'].normals
+                normal = normal[0][0]
+                unit_normal = normal / np.linalg.norm(normal)
+
+
+        for file_number in range(len(files)):
+            file_name = files[file_number]
+            if file_name != "space" and file_name != "*":
+                file = Mesh(file_name, char=True)
+                file.mesh.setColor(QColor(255, 0, 0))
+                file.mesh.translate(face_center[0] + (-len(files) + 1 + (int(len(files) - 1) / 2) + file_number) * 10,
+                                    face_center[1], face_center[2])
+                file.mesh.rotation = QQuaternion.fromAxisAndAngle(QVector3D(0, 1, 0), 180)
+                self.set_displayed_items(file.mesh, file.data, "char")

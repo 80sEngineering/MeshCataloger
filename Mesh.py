@@ -4,11 +4,11 @@ import stl
 
 
 class Mesh:
-    def __init__(self, file_name):
+    def __init__(self, file_name, char=False):
         self.file = stl.mesh.Mesh.from_file(file_name)
+        self.char = char # True if character, False if mesh
         self.data = self.convert_data()
         self.mesh = self.convert_to_stl()
-        self.dimensions = self.get_dimensions()
         self.center_mesh()
 
     def convert_data(self):
@@ -18,7 +18,13 @@ class Mesh:
         return data
 
     def convert_to_stl(self):
-        mesh = gl.GLMeshItem(meshdata=self.data, smooth=False, drawFaces=False, drawEdges=True, edgeColor=(1, 1, 1, 1))
+        if self.char:
+            mesh = gl.GLMeshItem(meshdata=self.data, smooth=False, drawFaces=False, drawEdges=True,
+                                 edgeColor=(1, 0, 0, 1))
+        else:
+            # modify color for letters
+            mesh = gl.GLMeshItem(meshdata=self.data, smooth=False, drawFaces=False, drawEdges=True,
+                                 edgeColor=(1, 1, 1, 1))
         return mesh
 
     def get_dimensions(self):
@@ -51,9 +57,10 @@ class Mesh:
         return dimensions
 
     def center_mesh(self):
-        dx = -self.dimensions["minx"] - (self.dimensions["width"] / 2)
-        dy = -self.dimensions["miny"] - (self.dimensions["length"] / 2)
-        dz = -self.dimensions["minz"] - (self.dimensions["height"] / 2)
+        dimensions = self.get_dimensions()
+        dx = -dimensions["minx"] - (dimensions["width"] / 2)
+        dy = -dimensions["miny"] - (dimensions["length"] / 2)
+        dz = -dimensions["minz"] - (dimensions["height"] / 2)
         vertexes = []
         for vertex in self.data.vertexes():
             vertex[0] += dx
@@ -62,4 +69,3 @@ class Mesh:
             vertexes.append(vertex)
         faces = np.arange(np.array(vertexes).shape[0]).reshape(-1, 3)
         self.mesh.setMeshData(meshdata=gl.MeshData(faces=faces, vertexes=vertexes))
-        self.mesh.update()
