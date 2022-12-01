@@ -94,6 +94,7 @@ class MainWindow(QMainWindow):
         self.file_name.setText(file_name[-20:])
         self.mesh_viewer.show_stl(file_name)
         self.mesh_viewer.grid.setVisible(True)
+        self.mesh_viewer.axis.setVisible(True)
         self.text.setText("Select a face ( aim + right click )")
         self.load_button.setText("Close file")
         self.load_button.disconnect()
@@ -106,7 +107,9 @@ class MainWindow(QMainWindow):
     def clicked_close_file(self):
         self.mesh_viewer.remove_displayed_items("stl")
         self.mesh_viewer.remove_displayed_items("face")
+        self.mesh_viewer.remove_displayed_items("char")
         self.mesh_viewer.remove_displayed_items("grid")
+        self.mesh_viewer.remove_displayed_items("axis")
         self.load_button.disconnect()
         self.select_face_button.setVisible(False)
         self.load_button.clicked.connect(self.clicked_open_file)

@@ -1,7 +1,7 @@
 import numpy as np
 import pyqtgraph.opengl as gl
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QVector3D, QColor, QQuaternion
+from PyQt6.QtGui import QVector3D, QColor
 from PyQt6.QtTest import QTest
 from pyqtgraph.Vector import Vector
 
@@ -16,6 +16,9 @@ class Viewer(gl.GLViewWidget):
         self.displayed_items = []
         self.camera_distance = 40
         self.setCameraParams(distance=self.camera_distance, fov=60)
+        self.axis = gl.GLAxisItem()  # blue axis = x, yellow = y, green = z
+        self.axis.setVisible(False)
+        self.set_displayed_items(self.axis, None, "axis")
         self.grid = gl.GLGridItem()
         self.grid.setVisible(False)
         self.set_displayed_items(self.grid, None, "grid")
@@ -35,8 +38,13 @@ class Viewer(gl.GLViewWidget):
                 break
         if name == "grid":
             self.grid = gl.GLGridItem()
-            self.set_displayed_items(self.grid, None, "grid")
             self.grid.setVisible(False)
+            self.set_displayed_items(self.grid, None, "grid")
+
+        if name == "axis":
+            self.axis = gl.GLAxisItem()
+            self.axis.setVisible(False)
+            self.set_displayed_items(self.axis, None, "axis")
 
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
@@ -53,7 +61,8 @@ class Viewer(gl.GLViewWidget):
         file = Mesh(file_name)
         dimensions = file.get_dimensions()
         self.set_displayed_items(file.mesh, file.data, "stl")
-        # Moves the grid so that the mesh sits on it
+        # Scale and move the grid and axis so that the mesh sits on it
+        self.axis.scale(int(dimensions["width"] / 5), int(dimensions["length"] / 5), int(dimensions["height"] / 5))
         self.grid.scale(int(dimensions["width"] / 10), int(dimensions["length"] / 10), 1)
         self.grid.translate(0, 0, int(dimensions["height"] / -2))
         # Moves the camera to account for mesh's size.
@@ -179,22 +188,52 @@ class Viewer(gl.GLViewWidget):
             self.update()
             QTest.qWait(10)
 
+    def angle_from_vectors(self, vector1, vector2):
+
+        normalized_vector1, normalized_vector2 = (vector1 / np.linalg.norm(vector1)).reshape(3), (
+                vector2 / np.linalg.norm(vector2)).reshape(3)
+        cross_product = np.cross(normalized_vector1, normalized_vector2)
+        dot_product = np.dot(normalized_vector1, normalized_vector2)
+        normalized_cross_product = np.linalg.norm(cross_product)
+        result = np.array([[0, -cross_product[2], cross_product[1]], [cross_product[2], 0, -cross_product[0]],
+                           [-cross_product[1], cross_product[0], 0]])
+        rotation_matrix = np.eye(3) + result + result.dot(result) * (
+                    (1 - dot_product) / (normalized_cross_product ** 2))
+
+        r11, r12, r13 = rotation_matrix[0]
+        r21, r22, r23 = rotation_matrix[1]
+        r31, r32, r33 = rotation_matrix[2]
+        x_angle = np.arctan(-r23 / r33)
+        y_angle = np.arctan(r13 * np.cos(x_angle) / r33)
+        z_angle = np.arctan(-r12 / r11)
+
+        x_angle = x_angle * 180 / np.pi
+        y_angle = y_angle * 180 / np.pi
+        z_angle = z_angle * 180 / np.pi
+
+        return x_angle, y_angle, z_angle
+
     def show_char(self, files):
-        face_center = [0, 0, 0]
-        normal = list()
+        face_center, normal = [0, 0, 0], [0, 0, 0]
         for item in self.displayed_items:
             if item["name"] == "face":
-                normal = item['mesh'].normals
-                normal = normal[0][0]
-                unit_normal = normal / np.linalg.norm(normal)
+                face = item['mesh'].vertexes[0]
+                face_center = (face[0] + face[1] + face[2]) / 3
+                normal = np.cross(face[1] - face[0], face[2] - face[0])
+                normal = QVector3D(normal[0], normal[1], normal[2])
+                normal.normalize()
+                break
 
-
+        angles = self.angle_from_vectors(np.array([0, 0, 1]), np.array([normal.x(), normal.y(), normal.z()]))
+        # opening the mesh, moving it to the center of the face, and rotating it to align with its normal
         for file_number in range(len(files)):
             file_name = files[file_number]
             if file_name != "space" and file_name != "*":
                 file = Mesh(file_name, char=True)
                 file.mesh.setColor(QColor(255, 0, 0))
-                file.mesh.translate(face_center[0] + (-len(files) + 1 + (int(len(files) - 1) / 2) + file_number) * 10,
-                                    face_center[1], face_center[2])
-                file.mesh.rotation = QQuaternion.fromAxisAndAngle(QVector3D(0, 1, 0), 180)
+                distance_between_char = (-len(files) + 1 + (int(len(files) - 1) / 2) + file_number) * 10
+                file.mesh.translate(face_center[0], face_center[1], face_center[2])
+                file.mesh.rotate(angles[0], 1, 0, 0, local=True)
+                file.mesh.rotate(angles[1], 0, 1, 0, local=True)
+                file.mesh.rotate(angles[2], 0, 0, 1, local=True)
                 self.set_displayed_items(file.mesh, file.data, "char")
