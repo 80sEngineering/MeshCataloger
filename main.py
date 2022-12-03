@@ -105,11 +105,13 @@ class MainWindow(QMainWindow):
         self.select_face_button.setVisible(True)
 
     def clicked_close_file(self):
-        self.mesh_viewer.remove_displayed_items("stl")
-        self.mesh_viewer.remove_displayed_items("face")
-        self.mesh_viewer.remove_displayed_items("char")
-        self.mesh_viewer.remove_displayed_items("grid")
-        self.mesh_viewer.remove_displayed_items("axis")
+        while len(self.mesh_viewer.displayed_items) >= 4:
+            self.mesh_viewer.remove_displayed_items("stl")
+            self.mesh_viewer.remove_displayed_items("face")
+            self.mesh_viewer.remove_displayed_items("char")
+            self.mesh_viewer.remove_displayed_items("grid")
+            self.mesh_viewer.remove_displayed_items("axis")
+        self.mesh_viewer.setCameraParams(center=self.mesh_viewer.center)
         self.load_button.disconnect()
         self.select_face_button.setVisible(False)
         self.load_button.clicked.connect(self.clicked_open_file)

@@ -1,3 +1,5 @@
+from math import copysign
+
 import numpy as np
 import pyqtgraph.opengl as gl
 from PyQt6.QtCore import Qt
@@ -14,8 +16,10 @@ class Viewer(gl.GLViewWidget):
         super().__init__()
         self.setMinimumSize(550, 550)
         self.displayed_items = []
+        self.dimensions_stl = None
         self.camera_distance = 40
         self.setCameraParams(distance=self.camera_distance, fov=60)
+        self.center = Vector(0, 0, 0)
         self.axis = gl.GLAxisItem()  # blue axis = x, yellow = y, green = z
         self.axis.setVisible(False)
         self.set_displayed_items(self.axis, None, "axis")
@@ -32,10 +36,10 @@ class Viewer(gl.GLViewWidget):
 
     def remove_displayed_items(self, name):
         for displayed_item in self.displayed_items:
-            if displayed_item['name'] == name:
+            if displayed_item["name"] == name:
                 self.removeItem(displayed_item['mesh'])
                 self.displayed_items.remove(displayed_item)
-                break
+
         if name == "grid":
             self.grid = gl.GLGridItem()
             self.grid.setVisible(False)
@@ -59,16 +63,17 @@ class Viewer(gl.GLViewWidget):
 
     def show_stl(self, file_name):
         file = Mesh(file_name)
-        dimensions = file.get_dimensions()
+        self.dimensions_stl = file.get_dimensions()
         self.set_displayed_items(file.mesh, file.data, "stl")
         # Scale and move the grid and axis so that the mesh sits on it
-        self.axis.scale(int(dimensions["width"] / 5), int(dimensions["length"] / 5), int(dimensions["height"] / 5))
-        self.grid.scale(int(dimensions["width"] / 10), int(dimensions["length"] / 10), 1)
-        self.grid.translate(0, 0, int(dimensions["height"] / -2))
+        self.axis.scale(int(self.dimensions_stl["width"] / 5), int(self.dimensions_stl["length"] / 5),
+                        int(self.dimensions_stl["height"] / 5))
+        self.grid.scale(int(self.dimensions_stl["width"] / 10), int(self.dimensions_stl["length"] / 10), 1)
+        self.grid.translate(0, 0, int(self.dimensions_stl["height"] / -2))
         # Moves the camera to account for mesh's size.
-        distances = [dimensions['width'] / np.tan(np.pi * 0.1666),
-                     dimensions['length'] / np.tan(np.pi * 0.1666),
-                     dimensions['height'] / np.tan(np.pi * 0.1666)]
+        distances = [self.dimensions_stl['width'] / np.tan(np.pi * 0.1666),
+                     self.dimensions_stl['length'] / np.tan(np.pi * 0.1666),
+                     self.dimensions_stl['height'] / np.tan(np.pi * 0.1666)]
         self.camera_distance = max(distances)
         self.setCameraParams(distance=self.camera_distance)
 
@@ -147,7 +152,7 @@ class Viewer(gl.GLViewWidget):
         self.remove_displayed_items("face")
         self.set_displayed_items(face_mesh, data, "face")
 
-    def rotate_camera(self, face):
+    def rotate_camera(self, face):  # TODO fix weird rotation on some vertical faces.
         # Getting the center of the face to align it with the center of rotation of the camera.
         center = (face[0] + face[1] + face[2]) / 3
         center = QVector3D(center[0], center[1], center[2])
@@ -189,32 +194,45 @@ class Viewer(gl.GLViewWidget):
             QTest.qWait(10)
 
     def angle_from_vectors(self, vector1, vector2):
-
         normalized_vector1, normalized_vector2 = (vector1 / np.linalg.norm(vector1)).reshape(3), (
                 vector2 / np.linalg.norm(vector2)).reshape(3)
         cross_product = np.cross(normalized_vector1, normalized_vector2)
-        dot_product = np.dot(normalized_vector1, normalized_vector2)
-        normalized_cross_product = np.linalg.norm(cross_product)
-        result = np.array([[0, -cross_product[2], cross_product[1]], [cross_product[2], 0, -cross_product[0]],
-                           [-cross_product[1], cross_product[0], 0]])
-        rotation_matrix = np.eye(3) + result + result.dot(result) * (
+        if any(cross_product):  # in case the two vectors are collinear
+            dot_product = np.dot(normalized_vector1, normalized_vector2)
+            normalized_cross_product = np.linalg.norm(cross_product)
+            result = np.array([[0, -cross_product[2], cross_product[1]], [cross_product[2], 0, -cross_product[0]],
+                               [-cross_product[1], cross_product[0], 0]])
+            rotation_matrix = np.eye(3) + result + result.dot(result) * (
                     (1 - dot_product) / (normalized_cross_product ** 2))
+            collinear = False
+        else:
+            rotation_matrix = np.eye(3)
+            collinear = True
 
         r11, r12, r13 = rotation_matrix[0]
         r21, r22, r23 = rotation_matrix[1]
         r31, r32, r33 = rotation_matrix[2]
-        x_angle = np.arctan(-r23 / r33)
-        y_angle = np.arctan(r13 * np.cos(x_angle) / r33)
-        z_angle = np.arctan(-r12 / r11)
+
+        if r33 != 0:  # Those are only useful in case of perpendicular vectors.
+            x_angle = np.arctan(-r23 / r33)
+            y_angle = np.arctan(r13 * np.cos(x_angle) / r33)
+        else:
+            x_angle = np.arctan(copysign(1, -r23) * np.inf)  # copysign(1,x) returns the sign of x
+            y_angle = np.arctan(copysign(1, r13 * np.cos(x_angle)) * np.inf)
+        if r11 != 0:
+            z_angle = np.arctan(-r12 / r11)
+        else:
+            z_angle = np.arctan(copysign(1, -r12) * np.inf)
 
         x_angle = x_angle * 180 / np.pi
         y_angle = y_angle * 180 / np.pi
         z_angle = z_angle * 180 / np.pi
 
-        return x_angle, y_angle, z_angle
+        angles = [x_angle, y_angle, z_angle]
+        return angles, collinear
 
     def show_char(self, files):
-        face_center, normal = [0, 0, 0], [0, 0, 0]
+        normal, face_center = QVector3D(0, 0, 0), np.array(3)
         for item in self.displayed_items:
             if item["name"] == "face":
                 face = item['mesh'].vertexes[0]
@@ -223,16 +241,26 @@ class Viewer(gl.GLViewWidget):
                 normal = QVector3D(normal[0], normal[1], normal[2])
                 normal.normalize()
                 break
+        angles, collinear = self.angle_from_vectors(np.array([0, 0, 1]), np.array([normal.x(), normal.y(), normal.z()]))
+        if not collinear:  # if selected face is not parallel to the grid
+            writing_direction = QVector3D.crossProduct(normal, QVector3D(0, 0, 1))
+        else:
+            writing_direction = QVector3D(1, 0, 0)
 
-        angles = self.angle_from_vectors(np.array([0, 0, 1]), np.array([normal.x(), normal.y(), normal.z()]))
-        # opening the mesh, moving it to the center of the face, and rotating it to align with its normal
-        for file_number in range(len(files)):
+        for file_number in range(
+                len(files)):  # opening the mesh, moving it to the center of the face, and rotating it to align with it.
             file_name = files[file_number]
             if file_name != "space" and file_name != "*":
                 file = Mesh(file_name, char=True)
                 file.mesh.setColor(QColor(255, 0, 0))
-                distance_between_char = (-len(files) + 1 + (int(len(files) - 1) / 2) + file_number) * 10
-                file.mesh.translate(face_center[0], face_center[1], face_center[2])
+                file_volume = self.dimensions_stl["width"] * self.dimensions_stl["length"] * self.dimensions_stl[
+                    "height"]
+                file_volume = file_volume ** 0.33
+                file.mesh.scale(file_volume / 100, file_volume / 100, file_volume / 100)
+                distance_between_char = (-len(files) + 1 + (int(len(files) - 1)) + file_number) * file_volume / 10
+                file.mesh.translate(face_center[0] + int(writing_direction[0] * distance_between_char),
+                                    face_center[1] + int(writing_direction[1] * distance_between_char), face_center[2])
+                file.mesh.rotate(90, 1, 0, 0, local=True)  # fixes initial orientation
                 file.mesh.rotate(angles[0], 1, 0, 0, local=True)
                 file.mesh.rotate(angles[1], 0, 1, 0, local=True)
                 file.mesh.rotate(angles[2], 0, 0, 1, local=True)
