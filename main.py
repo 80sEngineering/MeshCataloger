@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QWidget, \
-    QFileDialog, QLabel, QLineEdit, QSplitter, QDoubleSpinBox
+    QFileDialog, QLabel, QLineEdit, QSplitter, QDoubleSpinBox, QDial
 
 from Viewer import Viewer
 
@@ -16,16 +16,14 @@ class MainWindow(QMainWindow):
         self.text = QLabel()
         self.file_name = QLabel()
         self.load_button = QPushButton()
-        self.select_face_button = QPushButton()
         self.text_input = QLineEdit()
         self.first_part_number = QDoubleSpinBox()
         self.last_part_number = QDoubleSpinBox()
-        self.serialize_button = QPushButton()
-
+        self.apply_number_button = QPushButton()
+        print(self.frameSize())
         split_view = QSplitter(Qt.Orientation.Horizontal)
         split_view.addWidget(self.init_left_view())
         split_view.addWidget(self.init_right_view())
-
         self.setCentralWidget(split_view)
 
     def init_left_view(self):
@@ -46,31 +44,46 @@ class MainWindow(QMainWindow):
         self.text_input.setPlaceholderText("Part number *")
         right_layout.addWidget(self.text_input)
 
-        grid_layout = QGridLayout()
+        upper_grid_layout = QGridLayout()
 
         first_part_instruction = QLabel("First part number")
-        grid_layout.addWidget(first_part_instruction, 0, 0)
+        upper_grid_layout.addWidget(first_part_instruction, 0, 0)
 
         self.first_part_number.setMaximum(9999)
         self.first_part_number.setDecimals(0)
-        grid_layout.addWidget(self.first_part_number, 1, 0)
+        upper_grid_layout.addWidget(self.first_part_number, 1, 0)
 
         last_part_instruction = QLabel("Last part number")
-        grid_layout.addWidget(last_part_instruction, 0, 1)
+        upper_grid_layout.addWidget(last_part_instruction, 0, 1)
 
         self.last_part_number.setMaximum(10000)
         self.last_part_number.setDecimals(0)
-        grid_layout.addWidget(self.last_part_number, 1, 1)
+        upper_grid_layout.addWidget(self.last_part_number, 1, 1)
+        right_layout.addLayout(upper_grid_layout)
 
-        right_layout.addLayout(grid_layout)
-        self.serialize_button.setText("Serialize")
-        self.serialize_button.clicked.connect(self.clicked_serialize_button)
-        self.serialize_button.setEnabled(False)
-        right_layout.addWidget(self.serialize_button)
+        self.apply_number_button.setText("Apply serial number")
+        self.apply_number_button.clicked.connect(self.clicked_apply_number)
+        right_layout.addWidget(self.apply_number_button)
 
+        rotation_label = QLabel("Rotation")
+        rotation_label.resize(100, 100)
+        rotation_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        right_layout.addWidget(rotation_label)
+
+        rotation_layout = QHBoxLayout()
+
+        x_label, y_label, z_label = QLabel("X:"), QLabel("Y:"), QLabel("Z:")
+        x_dial, y_dial, z_dial = QDial(), QDial(), QDial()
+
+        rotation_layout.addWidget(x_label)
+        rotation_layout.addWidget(x_dial)
+        rotation_layout.addWidget(y_label)
+        rotation_layout.addWidget(y_dial)
+        rotation_layout.addWidget(z_label)
+        rotation_layout.addWidget(z_dial)
+
+        right_layout.addLayout(rotation_layout)
         right_layout.addStretch()
-
-        right_layout.addWidget(self.file_name)
 
         right_view = QWidget()
         right_view.setLayout(right_layout)
@@ -81,9 +94,7 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout()
         self.load_button.clicked.connect(self.clicked_open_file)
         self.text.setText("Please select a file")
-        self.select_face_button.setVisible(False)
         layout.addWidget(self.text)
-        layout.addWidget(self.select_face_button)
         layout.addWidget(self.load_button)
         return layout
 
@@ -100,10 +111,6 @@ class MainWindow(QMainWindow):
         self.load_button.disconnect()
         self.load_button.clicked.connect(self.clicked_close_file)
 
-        self.select_face_button.setText("Select Face")
-        self.select_face_button.clicked.connect(self.clicked_face_button)
-        self.select_face_button.setVisible(True)
-
     def clicked_close_file(self):
         while len(self.mesh_viewer.displayed_items) >= 4:
             self.mesh_viewer.remove_displayed_items("stl")
@@ -113,26 +120,12 @@ class MainWindow(QMainWindow):
             self.mesh_viewer.remove_displayed_items("axis")
         self.mesh_viewer.setCameraParams(center=self.mesh_viewer.center)
         self.load_button.disconnect()
-        self.select_face_button.setVisible(False)
         self.load_button.clicked.connect(self.clicked_open_file)
         self.load_button.setText("Load file")
         self.file_name.setText("")
         self.text.setText("Please select a file")
 
-    def clicked_face_button(self):
-        for item in self.mesh_viewer.displayed_items:
-            if item['name'] == "face":
-                selected_face = item
-                data = selected_face['data']
-                face = data.vertexes()
-                self.mesh_viewer.select_face(face, (0, 1, 0, 1))  # change color of the face to green.
-                self.text.setText("Face selected. Enter settings and click serialize")
-                self.serialize_button.setEnabled(True)
-
-    def clicked_serialize_button(self):
-        self.open_char_files()
-
-    def open_char_files(self):
+    def clicked_apply_number(self):
         files = []  # files = ["p.stl","a.stl","r.stl","t.stl"]
 
         for letter in self.text_input.text():
