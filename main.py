@@ -4,6 +4,7 @@ from pathlib import Path
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QWidget, \
     QFileDialog, QLabel, QLineEdit, QSplitter, QDoubleSpinBox, QDial
+from pyqtgraph import JoystickButton
 
 from Viewer import Viewer
 
@@ -20,7 +21,9 @@ class MainWindow(QMainWindow):
         self.first_part_number = QDoubleSpinBox()
         self.last_part_number = QDoubleSpinBox()
         self.apply_number_button = QPushButton()
-        print(self.frameSize())
+        self.right_layout = QVBoxLayout()
+        self.rotation_layout = QHBoxLayout()
+        self.translate_layout = QHBoxLayout()
         split_view = QSplitter(Qt.Orientation.Horizontal)
         split_view.addWidget(self.init_left_view())
         split_view.addWidget(self.init_right_view())
@@ -36,13 +39,13 @@ class MainWindow(QMainWindow):
         return left_view
 
     def init_right_view(self):
-        right_layout = QVBoxLayout()
+        self.right_layout.addStretch()
         text_input_instruction = QLabel()
         text_input_instruction.setText("Serial number format")
-        right_layout.addWidget(text_input_instruction)
+        self.right_layout.insertWidget(0, text_input_instruction)
 
         self.text_input.setPlaceholderText("Part number *")
-        right_layout.addWidget(self.text_input)
+        self.right_layout.insertWidget(1, self.text_input)
 
         upper_grid_layout = QGridLayout()
 
@@ -59,35 +62,16 @@ class MainWindow(QMainWindow):
         self.last_part_number.setMaximum(10000)
         self.last_part_number.setDecimals(0)
         upper_grid_layout.addWidget(self.last_part_number, 1, 1)
-        right_layout.addLayout(upper_grid_layout)
+        self.right_layout.insertLayout(2, upper_grid_layout)
 
         self.apply_number_button.setText("Apply serial number")
         self.apply_number_button.clicked.connect(self.clicked_apply_number)
-        right_layout.addWidget(self.apply_number_button)
-
-        rotation_label = QLabel("Rotation")
-        rotation_label.resize(100, 100)
-        rotation_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        right_layout.addWidget(rotation_label)
-
-        rotation_layout = QHBoxLayout()
-
-        x_label, y_label, z_label = QLabel("X:"), QLabel("Y:"), QLabel("Z:")
-        x_dial, y_dial, z_dial = QDial(), QDial(), QDial()
-
-        rotation_layout.addWidget(x_label)
-        rotation_layout.addWidget(x_dial)
-        rotation_layout.addWidget(y_label)
-        rotation_layout.addWidget(y_dial)
-        rotation_layout.addWidget(z_label)
-        rotation_layout.addWidget(z_dial)
-
-        right_layout.addLayout(rotation_layout)
-        right_layout.addStretch()
+        self.right_layout.insertWidget(3, self.apply_number_button)
 
         right_view = QWidget()
-        right_view.setLayout(right_layout)
+        right_view.setLayout(self.right_layout)
         return right_view
+
 
     def init_button_and_text(self):
         self.load_button.setText("Load file")
@@ -124,6 +108,7 @@ class MainWindow(QMainWindow):
         self.load_button.setText("Load file")
         self.file_name.setText("")
         self.text.setText("Please select a file")
+        self.hide_transformation_layout()
 
     def clicked_apply_number(self):
         files = []  # files = ["p.stl","a.stl","r.stl","t.stl"]
@@ -146,9 +131,57 @@ class MainWindow(QMainWindow):
                 else:
                     stl_char_file = "STL_Characters/" + "upper_" + letter + ".stl"
                 files.append(stl_char_file)
-
+        self.show_transformation_layout()
         self.mesh_viewer.show_char(files)
 
+    def show_transformation_layout(self):
+        x_label, y_label, z_label = QLabel("X:"), QLabel("Y:"), QLabel("Z:")
+        x_dial, y_dial, z_dial = QDial(), QDial(), QDial()
+        x_spin, y_spin, z_spin = QDoubleSpinBox(), QDoubleSpinBox(), QDoubleSpinBox()
+        x_joystick, y_joystick, z_joystick = JoystickButton(), JoystickButton(), JoystickButton()
+        widget_list = [x_label, x_dial, x_spin, y_label, y_dial, y_spin, z_label, z_dial, z_spin]
+
+        for layout in range(2):
+            for widget in widget_list:
+                if type(widget) == QDial or type(widget) == JoystickButton:
+                    widget.setFixedWidth(35)
+                    widget.setFixedHeight(35)
+                elif type(widget) == QLabel:
+                    widget.adjustSize()
+
+                if layout == 0:
+                    self.rotation_layout.addWidget(widget)
+                else:
+                    self.translate_layout.addWidget(widget)
+            x_label, y_label, z_label = QLabel("X:"), QLabel("Y:"), QLabel("Z:")
+            x_spin, y_spin, z_spin = QDoubleSpinBox(), QDoubleSpinBox(), QDoubleSpinBox()
+            widget_list = [x_label, x_joystick, x_spin, y_label, y_joystick, y_spin, z_label, z_joystick, z_spin]
+
+        self.rotation_layout.setSpacing(5)
+        self.translate_layout.setSpacing(5)
+
+        rotation_label = QLabel("Rotation")
+        rotation_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.right_layout.insertWidget(4, rotation_label)
+        self.right_layout.insertLayout(5, self.rotation_layout)
+
+        translate_label = QLabel("Translation")
+        translate_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.right_layout.insertWidget(6, translate_label)
+        self.right_layout.insertLayout(7, self.translate_layout)
+
+    def hide_transformation_layout(self):
+        items_to_remove = []
+        for index in range(8, 3, -1):
+            items_to_remove.append(self.right_layout.takeAt(index))
+        for item in items_to_remove:
+            if item.widget() is not None:
+                item.widget().deleteLater()
+            elif item.layout() is not None:
+                while item.layout().count():
+                    widget = item.layout().takeAt(0)
+                    widget.widget().deleteLater()
+        self.right_layout.addStretch()
 
 def main():
     app = QApplication(sys.argv)

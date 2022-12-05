@@ -14,7 +14,7 @@ class Viewer(gl.GLViewWidget):
 
     def __init__(self):
         super().__init__()
-        self.setMinimumSize(550, 550)
+        self.setMinimumSize(600, 600)
         self.displayed_items = []
         self.dimensions_stl = None
         self.camera_distance = 40
@@ -232,6 +232,13 @@ class Viewer(gl.GLViewWidget):
         return angles, collinear
 
     def show_char(self, files):
+        """
+
+        Function for custom formatting
+        pg.SpinBox(value=4567, step=1, int=True, bounds=[0, None], format='0x{value:X}',
+                   regex='(0x)?(?P<number>[0-9a-fA-F]+)$',
+                   evalFunc=lambda s: ast.literal_eval('0x' + s)))
+        """
         normal, face_center = QVector3D(0, 0, 0), np.array(3)
         for item in self.displayed_items:
             if item["name"] == "face":
