@@ -59,7 +59,7 @@ class Viewer(gl.GLViewWidget):
         super().mouseReleaseEvent(event)
         if event.button() == Qt.MouseButton.RightButton and len(
                 self.displayed_items) > 1:  # to make sure a mesh is loaded
-            self.aiming_line()
+            self.face_selection()
 
     def show_stl(self, file_name):
         file = Mesh(file_name)
@@ -77,7 +77,40 @@ class Viewer(gl.GLViewWidget):
         self.camera_distance = max(distances)
         self.setCameraParams(distance=self.camera_distance)
 
-    def aiming_line(self):
+    def face_selection(self):
+        def ray_triangle_intersection(start, direction, triangle):
+            point1, point2, point3 = triangle[0], triangle[1], triangle[2]
+
+            eps = 0.000001
+
+            edge1 = point2 - point1
+            edge2 = point3 - point1
+
+            direction = np.array([direction.x(), direction.y(), direction.z()])
+            cross_product = np.cross(direction, edge2)
+            det = edge1.dot(cross_product)
+
+            if abs(det) < eps:  # no intersection
+                return False
+
+            inverted_det = 1.0 / det
+            tvec = start - point1
+            u = tvec.dot(cross_product) * inverted_det
+
+            if u < 0.0 or u > 1.0:  # if not intersection
+                return False
+
+            qvec = np.cross(tvec, edge1)
+            v = direction.dot(qvec) * inverted_det
+            if v < 0.0 or u + v > 1.0:  # if not intersection
+                return False
+
+            t = edge2.dot(qvec) * inverted_det
+            if t < eps:
+                return False
+            self.intersection_triangle = triangle
+            return True
+
         point_of_view = self.cameraPosition()
         center = self.cameraParams()["center"]
         dir_vector_to_center = center - point_of_view
@@ -94,63 +127,31 @@ class Viewer(gl.GLViewWidget):
                     indexed='faces')  # [ [ [ x1,y1,z1 ] , [x2,y2,z2 ] , [x3,y3,z3] ] , [x1,y1,z1] ...] ]
                 break
 
+        def check_distance(triangle):
+            distance = min(
+                [np.linalg.norm(self.cameraPosition() - triangle[0]),
+                 np.linalg.norm(self.cameraPosition() - triangle[1]),
+                 np.linalg.norm(self.cameraPosition() - triangle[2])])
+            return distance
+
         distances = []
         index = 0
         for face_vertex in face_vertexes:  # Browse from bottom to top
-            if self.ray_triangle_intersection(point_of_view, dir_vector_to_center, face_vertex):
-                distances.append([self.check_distance(face_vertex), face_vertex])
+            if ray_triangle_intersection(point_of_view, dir_vector_to_center, face_vertex):
+                distances.append([check_distance(face_vertex), face_vertex])
             index += 1
+
+        def select_face(face, color):
+            data = gl.MeshData(vertexes=np.array(face), faces=[[0, 1, 2]])
+            face_mesh = gl.GLMeshItem(meshdata=data, smooth=False, drawFaces=True, color=color)
+            self.remove_displayed_items("face")
+            self.set_displayed_items(face_mesh, data, "face")
+
         if len(distances) > 0:  # if there is an intersection
             closest = min(distances, key=lambda x: x[0])  # distance = [ distance, face_vertex ]
             selected_face = closest[1]
-            self.select_face(selected_face, (0, 0, 1, 1))
+            select_face(selected_face, (0, 0, 1, 1))
             self.rotate_camera(selected_face)
-
-    def ray_triangle_intersection(self, start, direction, triangle):
-        point1, point2, point3 = triangle[0], triangle[1], triangle[2]
-
-        eps = 0.000001
-
-        edge1 = point2 - point1
-        edge2 = point3 - point1
-
-        direction = np.array([direction.x(), direction.y(), direction.z()])
-        cross_product = np.cross(direction, edge2)
-        det = edge1.dot(cross_product)
-
-        if abs(det) < eps:  # no intersection
-            return False
-
-        inverted_det = 1.0 / det
-        tvec = start - point1
-        u = tvec.dot(cross_product) * inverted_det
-
-        if u < 0.0 or u > 1.0:  # if not intersection
-            return False
-
-        qvec = np.cross(tvec, edge1)
-        v = direction.dot(qvec) * inverted_det
-        if v < 0.0 or u + v > 1.0:  # if not intersection
-            return False
-
-        t = edge2.dot(qvec) * inverted_det
-        if t < eps:
-            return False
-        self.intersection_triangle = triangle
-        return True
-
-    def check_distance(self, triangle):
-        distance = min(
-            [np.linalg.norm(self.cameraPosition() - triangle[0]),
-             np.linalg.norm(self.cameraPosition() - triangle[1]),
-             np.linalg.norm(self.cameraPosition() - triangle[2])])
-        return distance
-
-    def select_face(self, face, color):
-        data = gl.MeshData(vertexes=np.array(face), faces=[[0, 1, 2]])
-        face_mesh = gl.GLMeshItem(meshdata=data, smooth=False, drawFaces=True, color=color)
-        self.remove_displayed_items("face")
-        self.set_displayed_items(face_mesh, data, "face")
 
     def rotate_camera(self, face):  # TODO fix weird rotation on some vertical faces.
         # Getting the center of the face to align it with the center of rotation of the camera.
@@ -193,52 +194,46 @@ class Viewer(gl.GLViewWidget):
             self.update()
             QTest.qWait(10)
 
-    def angle_from_vectors(self, vector1, vector2):
-        normalized_vector1, normalized_vector2 = (vector1 / np.linalg.norm(vector1)).reshape(3), (
-                vector2 / np.linalg.norm(vector2)).reshape(3)
-        cross_product = np.cross(normalized_vector1, normalized_vector2)
-        if any(cross_product):  # in case the two vectors are collinear
-            dot_product = np.dot(normalized_vector1, normalized_vector2)
-            normalized_cross_product = np.linalg.norm(cross_product)
-            result = np.array([[0, -cross_product[2], cross_product[1]], [cross_product[2], 0, -cross_product[0]],
-                               [-cross_product[1], cross_product[0], 0]])
-            rotation_matrix = np.eye(3) + result + result.dot(result) * (
-                    (1 - dot_product) / (normalized_cross_product ** 2))
-            collinear = False
-        else:
-            rotation_matrix = np.eye(3)
-            collinear = True
-
-        r11, r12, r13 = rotation_matrix[0]
-        r21, r22, r23 = rotation_matrix[1]
-        r31, r32, r33 = rotation_matrix[2]
-
-        if r33 != 0:  # Those are only useful in case of perpendicular vectors.
-            x_angle = np.arctan(-r23 / r33)
-            y_angle = np.arctan(r13 * np.cos(x_angle) / r33)
-        else:
-            x_angle = np.arctan(copysign(1, -r23) * np.inf)  # copysign(1,x) returns the sign of x
-            y_angle = np.arctan(copysign(1, r13 * np.cos(x_angle)) * np.inf)
-        if r11 != 0:
-            z_angle = np.arctan(-r12 / r11)
-        else:
-            z_angle = np.arctan(copysign(1, -r12) * np.inf)
-
-        x_angle = x_angle * 180 / np.pi
-        y_angle = y_angle * 180 / np.pi
-        z_angle = z_angle * 180 / np.pi
-
-        angles = [x_angle, y_angle, z_angle]
-        return angles, collinear
-
     def show_char(self, files):
-        """
 
-        Function for custom formatting
-        pg.SpinBox(value=4567, step=1, int=True, bounds=[0, None], format='0x{value:X}',
-                   regex='(0x)?(?P<number>[0-9a-fA-F]+)$',
-                   evalFunc=lambda s: ast.literal_eval('0x' + s)))
-        """
+        def angle_from_vectors(vector1, vector2):
+            normalized_vector1, normalized_vector2 = (vector1 / np.linalg.norm(vector1)).reshape(3), (
+                    vector2 / np.linalg.norm(vector2)).reshape(3)
+            cross_product = np.cross(normalized_vector1, normalized_vector2)
+            if any(cross_product):  # in case the two vectors are collinear
+                dot_product = np.dot(normalized_vector1, normalized_vector2)
+                normalized_cross_product = np.linalg.norm(cross_product)
+                result = np.array([[0, -cross_product[2], cross_product[1]], [cross_product[2], 0, -cross_product[0]],
+                                   [-cross_product[1], cross_product[0], 0]])
+                rotation_matrix = np.eye(3) + result + result.dot(result) * (
+                        (1 - dot_product) / (normalized_cross_product ** 2))
+                collinear = False
+            else:
+                rotation_matrix = np.eye(3)
+                collinear = True
+
+            r11, r12, r13 = rotation_matrix[0]
+            r21, r22, r23 = rotation_matrix[1]
+            r31, r32, r33 = rotation_matrix[2]
+
+            if r33 != 0:  # Those are only useful in case of perpendicular vectors.
+                x_angle = np.arctan(-r23 / r33)
+                y_angle = np.arctan(r13 * np.cos(x_angle) / r33)
+            else:
+                x_angle = np.arctan(copysign(1, -r23) * np.inf)  # copysign(1,x) returns the sign of x
+                y_angle = np.arctan(copysign(1, r13 * np.cos(x_angle)) * np.inf)
+            if r11 != 0:
+                z_angle = np.arctan(-r12 / r11)
+            else:
+                z_angle = np.arctan(copysign(1, -r12) * np.inf)
+
+            x_angle = x_angle * 180 / np.pi
+            y_angle = y_angle * 180 / np.pi
+            z_angle = z_angle * 180 / np.pi
+
+            angles = [x_angle, y_angle, z_angle]
+            return angles, collinear
+
         normal, face_center = QVector3D(0, 0, 0), np.array(3)
         for item in self.displayed_items:
             if item["name"] == "face":
@@ -248,7 +243,7 @@ class Viewer(gl.GLViewWidget):
                 normal = QVector3D(normal[0], normal[1], normal[2])
                 normal.normalize()
                 break
-        angles, collinear = self.angle_from_vectors(np.array([0, 0, 1]), np.array([normal.x(), normal.y(), normal.z()]))
+        angles, collinear = angle_from_vectors(np.array([0, 0, 1]), np.array([normal.x(), normal.y(), normal.z()]))
         if not collinear:  # if selected face is not parallel to the grid
             writing_direction = QVector3D.crossProduct(normal, QVector3D(0, 0, 1))
         else:
@@ -272,3 +267,15 @@ class Viewer(gl.GLViewWidget):
                 file.mesh.rotate(angles[1], 0, 1, 0, local=True)
                 file.mesh.rotate(angles[2], 0, 0, 1, local=True)
                 self.set_displayed_items(file.mesh, file.data, "char")
+
+    def rotate_char(self, axis, angle):
+        for item in self.displayed_items:
+            if item["name"] == "char":
+                item["mesh"].rotate(angle, axis[0], axis[1], axis[2],local = True)
+                self.update()
+
+    def translate_char(self, axis, distance):
+        for item in self.displayed_items:
+            if item["name"] == "char":
+                item["mesh"].translate(axis[0] * distance, axis[1] * distance, axis[2] * distance)
+                self.update()

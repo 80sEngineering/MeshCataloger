@@ -3,8 +3,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QWidget, \
-    QFileDialog, QLabel, QLineEdit, QSplitter, QDoubleSpinBox, QDial
-from pyqtgraph import JoystickButton
+    QFileDialog, QLabel, QLineEdit, QSplitter, QDoubleSpinBox
 
 from Viewer import Viewer
 
@@ -42,6 +41,13 @@ class MainWindow(QMainWindow):
         self.right_layout.addStretch()
         text_input_instruction = QLabel()
         text_input_instruction.setText("Serial number format")
+        """
+
+        Function for custom formatting
+        pg.SpinBox(value=4567, step=1, int=True, bounds=[0, None], format='0x{value:X}',
+                   regex='(0x)?(?P<number>[0-9a-fA-F]+)$',
+                   evalFunc=lambda s: ast.literal_eval('0x' + s)))
+        """
         self.right_layout.insertWidget(0, text_input_instruction)
 
         self.text_input.setPlaceholderText("Part number *")
@@ -71,7 +77,6 @@ class MainWindow(QMainWindow):
         right_view = QWidget()
         right_view.setLayout(self.right_layout)
         return right_view
-
 
     def init_button_and_text(self):
         self.load_button.setText("Load file")
@@ -131,31 +136,30 @@ class MainWindow(QMainWindow):
                 else:
                     stl_char_file = "STL_Characters/" + "upper_" + letter + ".stl"
                 files.append(stl_char_file)
-        self.show_transformation_layout()
+        if self.right_layout.layout().count() < 6:
+            self.show_transformation_layout()
         self.mesh_viewer.show_char(files)
 
     def show_transformation_layout(self):
         x_label, y_label, z_label = QLabel("X:"), QLabel("Y:"), QLabel("Z:")
-        x_dial, y_dial, z_dial = QDial(), QDial(), QDial()
-        x_spin, y_spin, z_spin = QDoubleSpinBox(), QDoubleSpinBox(), QDoubleSpinBox()
-        x_joystick, y_joystick, z_joystick = JoystickButton(), JoystickButton(), JoystickButton()
-        widget_list = [x_label, x_dial, x_spin, y_label, y_dial, y_spin, z_label, z_dial, z_spin]
-
+        x_rot_spin, y_rot_spin, z_rot_spin = QDoubleSpinBox(), QDoubleSpinBox(), QDoubleSpinBox()
+        x_trans_spin, y_trans_spin, z_trans_spin = QDoubleSpinBox(), QDoubleSpinBox(), QDoubleSpinBox()
+        widget_list = [x_label, x_rot_spin, y_label, y_rot_spin, z_label, z_rot_spin]
         for layout in range(2):
             for widget in widget_list:
-                if type(widget) == QDial or type(widget) == JoystickButton:
-                    widget.setFixedWidth(35)
-                    widget.setFixedHeight(35)
-                elif type(widget) == QLabel:
+                if type(widget) == QLabel:
                     widget.adjustSize()
-
-                if layout == 0:
+                elif type(widget) == QDoubleSpinBox:
+                    widget.setMaximum(1000)
+                    widget.setMinimum(-1000)
+                    widget.setSingleStep(5)
+                if layout == 0:  # Rotation layout
                     self.rotation_layout.addWidget(widget)
                 else:
                     self.translate_layout.addWidget(widget)
+
             x_label, y_label, z_label = QLabel("X:"), QLabel("Y:"), QLabel("Z:")
-            x_spin, y_spin, z_spin = QDoubleSpinBox(), QDoubleSpinBox(), QDoubleSpinBox()
-            widget_list = [x_label, x_joystick, x_spin, y_label, y_joystick, y_spin, z_label, z_joystick, z_spin]
+            widget_list = [x_label, x_trans_spin, y_label, y_trans_spin, z_label, z_trans_spin]
 
         self.rotation_layout.setSpacing(5)
         self.translate_layout.setSpacing(5)
@@ -170,9 +174,15 @@ class MainWindow(QMainWindow):
         self.right_layout.insertWidget(6, translate_label)
         self.right_layout.insertLayout(7, self.translate_layout)
 
+        apply_transformation_button = QPushButton("Apply transformation")
+        apply_transformation_button.clicked.connect(
+            lambda: self.apply_transformation(x_rot_spin, y_rot_spin, z_rot_spin, x_trans_spin, y_trans_spin,
+                                              z_trans_spin))
+        self.right_layout.insertWidget(8, apply_transformation_button)
+
     def hide_transformation_layout(self):
         items_to_remove = []
-        for index in range(8, 3, -1):
+        for index in range(9, 3, -1):
             items_to_remove.append(self.right_layout.takeAt(index))
         for item in items_to_remove:
             if item.widget() is not None:
@@ -182,6 +192,15 @@ class MainWindow(QMainWindow):
                     widget = item.layout().takeAt(0)
                     widget.widget().deleteLater()
         self.right_layout.addStretch()
+
+    def apply_transformation(self, x_rot_spin, y_rot_spin, z_rot_spin, x_trans_spin, y_trans_spin, z_trans_spin):
+        self.mesh_viewer.rotate_char([1, 0, 0], x_rot_spin.value())
+        self.mesh_viewer.rotate_char([0, 1, 0], y_rot_spin.value())
+        self.mesh_viewer.rotate_char([0, 0, 1], z_rot_spin.value())
+        self.mesh_viewer.translate_char([1, 0, 0], x_trans_spin.value())
+        self.mesh_viewer.translate_char([0, 1, 0], y_trans_spin.value())
+        self.mesh_viewer.translate_char([0, 0, 1], z_trans_spin.value())
+
 
 def main():
     app = QApplication(sys.argv)
